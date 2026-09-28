@@ -38,7 +38,12 @@ skip() {  # $1 = 绝对路径
   return 1
 }
 
-hits=0
+hits=0; warns=0
+# 是否被 git 跟踪 —— 只有"会被复制/提交出去"的才算 FAIL，本地未跟踪的只算 WARN
+tracked() {
+  [ -e "$ROOT/.git" ] || return 1
+  git -C "$ROOT" ls-files --error-unmatch "${1#$ROOT/}" >/dev/null 2>&1
+}
 for pat in "${PATTERNS[@]}"; do
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -46,15 +51,34 @@ for pat in "${PATTERNS[@]}"; do
     skip "$f" && continue
     val="${rest#*:}"
     red=$(printf '%s' "$val" | sed -E 's/([A-Za-z0-9_+\/-]{6})[A-Za-z0-9_+\/=-]{10,}/\1***REDACTED***/g' | cut -c1-110)
-    printf "  🔴 %s:%s\n     %s\n" "${f#$ROOT/}" "$n" "$red"
-    hits=$((hits+1))
+    if tracked "$f"; then
+      printf "  🔴 %s:%s\n     %s\n" "${f#$ROOT/}" "$n" "$red"
+      hits=$((hits+1))
+    else
+      printf "  🟡 %s:%s  [本地未跟踪，不会同步出去]\n     %s\n" "${f#$ROOT/}" "$n" "$red"
+      warns=$((warns+1))
+    fi
   done < <(grep -rInaE --exclude-dir=.git --exclude-dir=node_modules "$pat" "$ROOT" 2>/dev/null || true)
 done
 
 if [ "$hits" -gt 0 ]; then
-  echo "CRED=FAIL hits=$hits  ← 明文凭据；请立即轮换(revoke)该凭据，不要只删文件（git 历史里仍有）"
-  [ "$QUIET" = "--quiet" ] || echo "     处置：① 去服务商后台轮换/吊销  ② 从文件里改成占位符  ③ 需要的话把该路径加进 .credignore"
+  echo "CRED=FAIL tracked_hits=$hits warning=$warns  ← ★这些是【会被提交/同步出去】的明文凭据"
+  [ "$QUIET" = "--quiet" ] || echo "     处置：① 去服务商后台轮换(revoke)  ② 文件里改成占位符或 gitignore 移出版本控制  ③ 轮换完才算修复"
   exit 1
 fi
-echo "CRED=OK 无明文凭据"
+
+# ★ 即使文件里已清干净，历史里的凭据仍需轮换 —— 只要这份清单在，就持续提示
+PEND="$(cd "$(dirname "$0")/.." && pwd)/SECURITY-PENDING.md"
+if [ -f "$PEND" ] && grep -q "^- \[x\] 全部" "$PEND" 2>/dev/null; then
+  :
+elif [ -f "$PEND" ]; then
+  pending=$(grep -c "^| [0-9]" "$PEND" 2>/dev/null)
+  echo "CRED=OK 无「会被同步出去」的明文凭据（本地未跟踪的 ${warns:-0} 处已忽略）"
+  echo "⚠ 但 SECURITY-PENDING.md 记着 ${pending:-?} 项【待轮换】凭据 —— 它们仍在 git 历史里。"
+  echo "   → 只有去服务商后台吊销才算修复（另有 --quiet 时本行不显示）"
+  [ "$QUIET" = "--quiet" ] && exit 0
+  exit 0
+else
+  echo "CRED=OK 无「会被同步出去」的明文凭据（本地未跟踪的 ${warns:-0} 处已忽略）"
+fi
 exit 0
