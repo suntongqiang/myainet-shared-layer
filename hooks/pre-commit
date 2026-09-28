@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# 拒绝引入「重复记忆编号」「残留冲突标记」「文件名与 id 不符」的提交。
+# 思路借自 marcusquinn/aidevops 的重复 ID 守卫；实现独立，且按 id 字段而非文件名判定。
+set -u
+fail=0
+
+# 只看 memory/ 下的条目文件（排除 INDEX.md）
+is_entry() { echo "$1" | grep -qE '(^|/)memory/[^/]+\.md$' && ! echo "$1" | grep -qE '(^|/)memory/INDEX\.md$'; }
+staged_all=$(git diff --cached --name-only 2>/dev/null || true)
+staged_entries=$(echo "$staged_all" | while read -r p; do [ -n "$p" ] && is_entry "$p" && echo "$p"; done)
+
+# ---- 1) 重复 id：计算「本次提交后仓库里的全部 id」再找重复 ----
+t_head=$(mktemp); t_staged=$(mktemp)
+# HEAD 中未被本次改动的条目 → 用 HEAD 版本
+git ls-tree -r --name-only HEAD 2>/dev/null | while read -r p; do
+  [ -n "$p" ] || continue
+  is_entry "$p" || continue
+  if ! echo "$staged_all" | grep -qx "$p"; then
+    git show "HEAD:$p" 2>/dev/null | tr -d '\r' | grep -m1 -E '^id:' | sed -E 's/^id:[[:space:]]*//;s/[[:space:]]*$//'
+  fi
+done | grep -E '^mem-[0-9]{4}$' | sort > "$t_head"
+# 本次暂存的条目 → 用暂存版本
+echo "$staged_entries" | while read -r p; do
+  [ -n "$p" ] || continue
+  git show ":$p" 2>/dev/null | tr -d '\r' | grep -m1 -E '^id:' | sed -E 's/^id:[[:space:]]*//;s/[[:space:]]*$//'
+done | grep -E '^mem-[0-9]{4}$' | sort > "$t_staged"
+
+dup=$(cat "$t_head" "$t_staged" | sort | uniq -d)
+if [ -n "$dup" ]; then
+  echo "❌ 提交被拒绝：引入重复的记忆编号"
+  echo "$dup" | sed 's/^/   DUP /'
+  echo "   → 先跑 scripts/next-mem-id.sh 取一个空闲编号"
+  fail=1
+fi
+rm -f "$t_head" "$t_staged"
+
+# ---- 2) 暂存的条目：id 必须存在，且若有规范文件名则必须与之一致 ----
+echo "$staged_entries" | while read -r p; do
+  [ -n "$p" ] || continue
+  [ "$(git diff --cached --name-status -- "$p" | cut -f1)" = "D" ] && continue
+  id=$(git show ":$p" 2>/dev/null | tr -d '\r' | grep -m1 -E '^id:' | sed -E 's/^id:[[:space:]]*//;s/[[:space:]]*$//')
+  base=$(basename "$p" .md)
+  if [ -z "$id" ]; then
+    echo "   WARN $p 缺 id 字段"
+  elif echo "$base" | grep -qE '^mem-[0-9]{4}$' && [ "$id" != "$base" ]; then
+    echo "   WARN $p 文件名($base) 与 id($id) 不一致"
+  fi
+done
+
+# ---- 3) 残留冲突标记 ----
+cm=$(git diff --cached -U0 2>/dev/null | grep -E '^\+(<<<<<<<|>>>>>>>) ' || true)
+if [ -n "$cm" ]; then
+  echo "❌ 提交被拒绝：暂存内容里有 git 冲突标记"
+  echo "$cm" | head -5 | sed 's/^/   /'
+  fail=1
+fi
+
+[ $fail -eq 0 ] || exit 1
+exit 0
