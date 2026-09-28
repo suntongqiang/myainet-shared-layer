@@ -55,5 +55,22 @@ if [ -n "$cm" ]; then
   fail=1
 fi
 
+# ---- 4) 明文凭据（★ 2026-09-28 事故：editor.html 里硬编码了 GitHub Token）----
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+if [ -n "$staged_files" ]; then
+  credhits=$(echo "$staged_files" | while read -r p; do
+    [ -n "$p" ] || continue
+    case "$p" in */check-credentials.sh|docs/FAILURE-MODES.md|*/hooks/pre-commit) continue;; esac
+    git show ":$p" 2>/dev/null | grep -InE 'gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|xox[baprs]-[A-Za-z0-9-]{10,}' \
+      | sed "s|^|$p:|"
+  done || true)
+  if [ -n "$credhits" ]; then
+    echo "❌ 提交被拒绝：暂存内容里有明文凭据"
+    echo "$credhits" | sed -E 's/([A-Za-z0-9_+\/-]{6})[A-Za-z0-9_+\/=-]{10,}/\1***REDACTED***/g' | sed 's/^/   /'
+    echo "   → 轮换(revoke)该凭据后，改成占位符再提交"
+    fail=1
+  fi
+fi
+
 [ $fail -eq 0 ] || exit 1
 exit 0

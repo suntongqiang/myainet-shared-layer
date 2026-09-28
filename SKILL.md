@@ -45,7 +45,10 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | `scripts/check-integrity.sh` | 重复 id / INDEX 不一致 / 残留冲突标记 / frontmatter 扫描 |
 | `scripts/inbox-submit.sh` | **★ 无冲突写入通道**（per-agent 时间戳文件） |
 | `scripts/promote-inbox.sh` | 中心化晋升：唯一 promoter 分配正式编号 |
-| `scripts/install-hooks.sh` + `hooks/pre-commit` | **★ 拒绝引入重复编号的提交** |
+| `scripts/install-hooks.sh` + `hooks/pre-commit` | **★ 拒绝引入重复编号 / 冲突标记 / 明文凭据的提交** |
+| **`scripts/check-credentials.sh`** | **★ 明文凭据扫描**（GitHub/AWS/Slack/OpenAI/私钥/通用 token= 形态），命中即脱敏报警 |
+| `scripts/memory-search.sh` | 检索 + **`<memory-data>` 注入防护**；支持 `--scope/--kind/--json` |
+| `scripts/memory-stale.sh` | 陈旧记忆候选 → 可逆归档（**永不删除**） |
 
 ## 典型操作
 
@@ -72,6 +75,9 @@ bash scripts/install-hooks.sh    $V       # 8. 一次性：装 pre-commit 守卫
 | 校验脚本全报不一致，但人工看是一致的 | 输出是否带 `\r`（Windows PowerShell） | FM-05 |
 | 编号算出明显偏小的值 | 前导零被当八进制 → `10#` | FM-07 |
 | 仓库里出现 `<<<<<<<` | `git add -A` 把冲突标记当已解决 | FM-08 |
+| 某技能文件里有明文 Token | `check-credentials.sh <层根>` | FM-14 |
+| 索引进有、文件不存在 | `check-integrity.sh` §4 双向比对 | FM-11 |
+| 规则明明写了却还是复发 | 它只写在文档里 —— 变成脚本 | FM-12 |
 
 ## 设计边界（诚实说）
 

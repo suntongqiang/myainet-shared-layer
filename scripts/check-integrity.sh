@@ -43,5 +43,11 @@ else echo "  SKIP 无 INDEX.md"; fi
 echo "== 5) 编号空洞（仅提示）=="
 mx=$(ls "$MEM" 2>/dev/null | grep -oE 'mem-[0-9]{4}' | grep -oE '[0-9]{4}' | sort -n | tail -1)
 echo "  最大编号 mem-${mx:-none}"
+echo "== 6) 明文凭据扫描 =="
+CREDSH="$(cd "$(dirname "$0")" && pwd)/check-credentials.sh"
+if [ -f "$CREDSH" ]; then
+  if out=$(bash "$CREDSH" "$V" --quiet 2>&1); then echo "  OK 无明文凭据"; else echo "$out" | sed 's/^/  /'; bad=$((bad+1)); fi
+else echo "  SKIP 未找到 check-credentials.sh"; fi
+
 echo "INTEGRITY=$( [ $bad -eq 0 ] && echo PASS || echo FAIL ) issues=$bad"
 [ $bad -eq 0 ] || exit 1

@@ -17,10 +17,16 @@ scan() {  # $1 = git ref
   git ls-tree -r --name-only "$1" memory/ 2>/dev/null \
     | grep -oE 'mem-[0-9]{4}\.md' | grep -oE '[0-9]{4}' | sort -n | tail -1
 }
-# 本地
-l=$(git ls-tree -r --name-only HEAD memory/ 2>/dev/null | grep -oE 'mem-[0-9]{4}\.md' | grep -oE '[0-9]{4}' | sort -n | tail -1)
-[ -n "$l" ] && lv=$((10#$l)) && [ "$lv" -gt "$max" ] && max=$lv
-echo "  本地 HEAD 最大: ${l:-none}"
+# ★ 本地必须同时看三处（少看一处就会撞号）：
+#   a) git HEAD          b) 文件系统 memory/          c) INDEX.md（可能有悬空行）
+l_git=$(git ls-tree -r --name-only HEAD memory/ 2>/dev/null | grep -oE 'mem-[0-9]{4}\.md' | grep -oE '[0-9]{4}' | sort -n | tail -1)
+l_fs=$(ls "$REPO/memory" 2>/dev/null | grep -oE 'mem-[0-9]{4}\.md' | grep -oE '[0-9]{4}' | sort -n | tail -1)
+l_ix=$(grep -oE 'mem-[0-9]{4}' "$REPO/memory/INDEX.md" 2>/dev/null | grep -oE '[0-9]{4}' | sort -n | tail -1)
+for v in "$l_git" "$l_fs" "$l_ix"; do
+  [ -n "$v" ] || continue
+  vv=$((10#$v)); [ "$vv" -gt "$max" ] && max=$vv
+done
+echo "  本地最大: git=${l_git:-none} fs=${l_fs:-none} index=${l_ix:-none}"
 # 各镜像（fetch 到临时 ref）
 i=0
 for m in "${MIRRORS[@]}"; do
