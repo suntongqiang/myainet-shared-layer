@@ -49,6 +49,8 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | **`scripts/check-credentials.sh`** | **★ 明文凭据扫描**（GitHub/AWS/Slack/OpenAI/私钥/通用 token= 形态），命中即脱敏报警 |
 | `scripts/memory-search.sh` | 检索 + **`<memory-data>` 注入防护**；支持 `--scope/--kind/--json` |
 | `scripts/memory-stale.sh` | 陈旧记忆候选 → 可逆归档（**永不删除**） |
+| **`scripts/snapshot.sh`** | **★ 打快照**：git tag + 逐文件 blob 哈希清单 + 各机活副本 HEAD（之后可回滚到它） |
+| **`scripts/rollback.sh`** | **★ 回滚**：`--list/--check/--apply/--hard`。默认**前向回滚提交**（多机安全），回滚前自动留后路 |
 
 ## 典型操作
 
@@ -63,6 +65,11 @@ bash scripts/promote-inbox.sh    $V --apply    # 5. 分配编号并落库
 bash scripts/shared-sync.sh               # 6. 推给所有镜像
 bash scripts/verify-live.sh               # 7. ★ 逐台确认真的同步了
 bash scripts/install-hooks.sh    $V       # 8. 一次性：装 pre-commit 守卫
+
+# 高风险操作前后
+bash scripts/snapshot.sh         $V --name before-risky    # 打锚点
+bash scripts/rollback.sh         $V --check before-risky   # 看会变什么
+bash scripts/rollback.sh         $V --apply before-risky --yes   # 退回（前向提交，可同步）
 ```
 
 ## 排障速查
