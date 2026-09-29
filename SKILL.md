@@ -1,6 +1,6 @@
 ---
 name: myainet-shared-layer
-description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用。含真实故障库（FM-01~FM-23）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群三项校验 / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
+description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用；也含与同类系统的双向对比。含真实故障库（FM-01~FM-24）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群三项校验 / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
 ---
 
 # myainet-shared-layer · 多机共享记忆层
@@ -37,6 +37,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | 路径 | 内容 |
 |---|---|
 | `docs/FAILURE-MODES.md` | **★ 真实故障库 FM-01~FM-10：症状 / 根因 / 对策 / 教训**（先读这个） |
+| `docs/COMPARISON.md` | **★ 与同类系统的双向对比**（shadowbrain / Mem0 / Letta 一类）：我们领先在「机群一致性校验（verify-live/verify-fleet）」；**落后在「检索质量、confidence 衰减、★召回正文的注入防护」** —— 后三项是从同类学来的待补项 |
 | `docs/ARCHITECTURE.md` | 架构与取舍（为什么不是单点 / Obsidian Sync / Syncthing / CRDT） |
 | `docs/PROTOCOL.md` | 记忆写入协议：条目形态、编号纪律、冲突裁决、写入路径、校验 |
 | `scripts/shared-sync.sh` / `.ps1` | 多镜像同步（fetch 首个可达 → 只 ff → 推所有可达） |

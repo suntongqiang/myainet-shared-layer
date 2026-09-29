@@ -600,3 +600,40 @@ bash 把 `` `F:\repos\myainet-shared-layer` `` 当**命令替换**执行，**路
 **教训**：
 > **把每一次真实的坑，变成一条自动校验。** 这是唯一能让"故障库"不只当文档看的办法。
 > `verify-fleet.sh` 的 (a)(b)(c) 三项，就是这次四个坑的墓碑。
+
+---
+
+## FM-24 ★★★ 远程执行用 `-EncodedCommand` —— 撞 Windows 8191 命令行上限，报一个完全误导的错
+
+**症状**：一整个下午，从手机往 **cunchu** 发的每一条 "读 stdin + 执行" 的远程命令**全部失败**，
+报的是 `ssh(shim): Timed out while waiting for handshake` 或干脆**零输出** ——
+看起来像网络抖动，于是反复重试，白耗几小时。
+
+**根因**（同类项目已归档，且给了决定性证据）：`powershell.exe -EncodedCommand <base64>` 在 Windows 上受
+**8191 字符命令行上限**约束（cmd.exe / CreateProcess）。而 **UTF-16LE 的 base64 会把脚本膨胀约 2.67 倍**：
+一个 ~3,100 字符的脚本 → ~8,000+ 字符命令行 → **超限** → 远端回 `The command line is too long.`、
+**stdout 为空** → 上层只能报一个与真实原因无关的错误。
+
+**决定性证据（与我们实测一致）**：**同一份脚本**
+- 走 `-EncodedCommand` → 失败、stdout 空
+- 走 **`-File <路径>`** → 成功
+→ **问题在传输方式，不在脚本、不在网络。**
+
+另外：cunchu 的 `HKLM\SOFTWARE\OpenSSH\DefaultShell` 被改成 PowerShell（`DefaultShellCommandOption=-c`）之后，
+**长 `-EncodedCommand` 必失败**；同机上 `-Command` / 普通命令 / `-File` 都正常。
+
+**对策（三条，按优先级）**：
+1. **★优先 `-File` staging**：把 `.ps1` 写到远端临时文件，再 `powershell -NoProfile -ExecutionPolicy Bypass -File <path>`。
+   —— 同类项目推荐的正是这条："最小的改动、脚本原文不变、避开单行 argv 上限"
+2. **`-Command` 或 stdin（`-`）传输**：短脚本可用；长脚本不要走命令行
+3. **要 `-EncodedCommand` 就必须先量长度**：`base64(utf16le(script)).Length + 固定开销 < 8191`，
+   **超了就 gzip+b64 或改 `-File`**
+
+**★方法论（这条比故障本身值钱）**：
+> **"报网络错"时要先怀疑"我发的命令根本没被正确执行"。**
+> 我们这次的表现是"ssh 握手超时"，而真因是**命令行太长** —— 一个**完全无关**的错误面。
+> 判据：**换一种传输方式（`-Command`/`-File`）若立刻好，就不是网络。** 这一条 5 秒钟就能验，我却反复重试了几小时。
+
+**同类项目归档**：`NousResearch/hermes-agent` issue **#106716**
+*"Desktop SSH to Windows remote fails: probe command line exceeds Windows 8191-char limit"*（open，P2）
+https://github.com/NousResearch/hermes-agent/issues/106716
