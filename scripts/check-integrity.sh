@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 共享层·完整性体检：重复 id / 文件名与 id 不一致 / 残留冲突标记 / INDEX 一致性
+# 共享层·完整性体检：重复 id / 文件名与 id 不一致 / 残留冲突标记 / INDEX 一致性 / INDEX 重复行 / 明文凭据
 # 用法: bash check-integrity.sh /path/to/vault
 set -u
 V="${1:-$HOME/.dsh/_shared}"
@@ -40,10 +40,26 @@ if [ -f "$IDX" ]; then
   [ -n "$onlyidx$onlyfile" ] || echo "  OK 对齐（$(echo "$b" | grep -c .) 条）"
 else echo "  SKIP 无 INDEX.md"; fi
 
-echo "== 5) 编号空洞（仅提示）=="
+echo "== 5) INDEX 重复行（同号两行 = 撞号覆盖的唯一可靠证据）=="
+# 为什么必须有这一项：两台机器先后用同一编号写记忆时，后写的会**覆盖先写的文件**，
+# 于是「比各分支尖端内容」「比文件名」全都看不出异常——只有 append-only 的 INDEX
+# 会留下两行同号记录。2026-09-29 实测：mem-0132/0133/0134 三条景德记忆被同号覆盖
+# 达 9 天无人发现，正是因为当时没有这一项（FM-02 漏网）。
+if [ -f "$IDX" ]; then
+  dupidx=$(grep -oE '^\| *mem-[0-9]{4}' "$IDX" 2>/dev/null | grep -oE 'mem-[0-9]{4}' | sort | uniq -d)
+  if [ -n "$dupidx" ]; then
+    pat=$(echo "$dupidx" | tr '\n' '|' | sed 's/|$//')
+    echo "  重复编号: $(echo "$dupidx" | tr '\n' ' ')"
+    grep -nE "^\| *($pat) " "$IDX" | cut -c1-160 | sed 's/^/    /'
+    echo "  → 请立即核对：被覆盖的那条内容可用 git log -S '<关键词>' 捞回，再重编号"
+    bad=$((bad+1))
+  else echo "  OK 无重复行"; fi
+else echo "  SKIP 无 INDEX.md"; fi
+
+echo "== 6) 编号空洞（仅提示）=="
 mx=$(ls "$MEM" 2>/dev/null | grep -oE 'mem-[0-9]{4}' | grep -oE '[0-9]{4}' | sort -n | tail -1)
 echo "  最大编号 mem-${mx:-none}"
-echo "== 6) 明文凭据扫描 =="
+echo "== 7) 明文凭据扫描 =="
 CREDSH="$(cd "$(dirname "$0")" && pwd)/check-credentials.sh"
 if [ -f "$CREDSH" ]; then
   if out=$(bash "$CREDSH" "$V" --quiet 2>&1); then echo "  OK 无明文凭据"; else echo "$out" | sed 's/^/  /'; bad=$((bad+1)); fi

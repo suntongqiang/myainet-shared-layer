@@ -1,6 +1,6 @@
 ---
 name: myainet-shared-layer
-description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用。含真实故障库（FM-01~FM-10）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / 能推不能拉。
+description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用。含真实故障库（FM-01~FM-23）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群三项校验 / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
 ---
 
 # myainet-shared-layer · 多机共享记忆层
@@ -41,6 +41,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | `docs/PROTOCOL.md` | 记忆写入协议：条目形态、编号纪律、冲突裁决、写入路径、校验 |
 | `scripts/shared-sync.sh` / `.ps1` | 多镜像同步（fetch 首个可达 → 只 ff → 推所有可达） |
 | `scripts/verify-live.sh` | **★ 活副本端到端校验**（逐台 ssh 查 HEAD，与镜像 tip 比对） |
+| `scripts/verify-fleet.sh` | **★ 机群三项校验**：(a) 代码仓一致（HEAD/工作区/origin）(b) **调度拓扑唯一性**（同名交易任务不能两台同时启用）(c) **缓存末日**（运行时陈旧=FAIL/非运行时=WARN）。★一律比 commit 不比字节（三台 autocrlf=true，比字节必误报） |
 | `scripts/next-mem-id.sh` | **★ 跨全部镜像**取下一个空闲编号 |
 | `scripts/check-integrity.sh` | 重复 id / INDEX 不一致 / 残留冲突标记 / frontmatter 扫描 |
 | `scripts/inbox-submit.sh` | **★ 无冲突写入通道**（per-agent 时间戳文件） |
@@ -85,6 +86,11 @@ bash scripts/rollback.sh         $V --apply before-risky --yes   # 退回（前�
 | 某技能文件里有明文 Token | `check-credentials.sh <层根>` | FM-14 |
 | 索引进有、文件不存在 | `check-integrity.sh` §4 双向比对 | FM-11 |
 | 规则明明写了却还是复发 | 它只写在文档里 —— 变成脚本 | FM-12 |
+| 同一份代码两台各跑各的 | `verify-fleet.sh` (a) 比 commit；查是否有人绕过了仓 | FM-20 |
+| 文件"看起来正常"却语法错/配置失效 | 定界符被注释或编辑吃掉了（少 Host 行 / 吞 `}`）| FM-19 / FM-21 |
+| 任务状态 Ready、日志在长，但没产出 | 读日志内容 + 核产物；`Ready` ≠ 跑成功 | FM-22 |
+| 校验全绿但故障还在 | **故障长在你没校验的地方** —— 覆盖面要跟着"实际在跑的东西"走 | FM-23 |
+| 同一个问题两台机器两个答案 | `verify-fleet.sh` (c) 比缓存末日 | FM-23 |
 
 ## 设计边界（诚实说）
 
