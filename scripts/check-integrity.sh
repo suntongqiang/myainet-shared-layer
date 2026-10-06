@@ -81,5 +81,25 @@ while IFS= read -r _ln; do
 done < "$IDX"
 if [ "$_sus" -eq 0 ]; then echo "  OK 无被吞内容的痕迹"; else bad=$((bad+_sus)); fi
 
+echo "== 9) ★含非 ASCII 的 .ps1 必须有 UTF-8 BOM（FM-30）=="
+# 为什么必须有这一项：PS 5.1 在【没有 BOM】时按 ACP（中文机 = 936/GBK）解码 .ps1，而不是 UTF-8。
+# UTF-8 的中文注释被当 GBK 解 → 字节错位 → 紧跟其后的换行被一并吃掉
+# ⇒ 下一行代码并入注释、静默消失。**无报错、无语法错、文件哈希一致、日志还显示成功。**
+# 2026-10-07 实测：shared-sync.ps1 的 `$LocalBares = @()` 被吞 → 去重整段失效，
+# 表现成 pushed_remote=3/3 而本地 bare 全失败（"推了 3 个"其实推错对象）。
+# 这条纪律光写文档没用 —— 它已经骗过三道把关，故做成机械校验。
+_nobom=0
+while IFS= read -r _pf; do
+  # 有非 ASCII 字节？（删掉全部 ASCII 字节后仍有剩余 ⇒ 有非 ASCII）
+  if [ -n "$(LC_ALL=C tr -d '\000-\177' < "$_pf" 2>/dev/null)" ]; then
+    _bom=$(head -c 3 "$_pf" 2>/dev/null | od -An -tx1 | tr -d ' \n')
+    if [ "$_bom" != "efbbbf" ]; then
+      echo "  ✗ 缺 UTF-8 BOM: ${_pf#$V/}"
+      _nobom=$((_nobom+1))
+    fi
+  fi
+done < <(find "$V" -type f -name '*.ps1' -not -path '*/.git/*' 2>/dev/null)
+if [ "$_nobom" -eq 0 ]; then echo "  OK 含非 ASCII 的 .ps1 都带 BOM"; else bad=$((bad+_nobom)); fi
+
 echo "INTEGRITY=$( [ $bad -eq 0 ] && echo PASS || echo FAIL ) issues=$bad"
 [ $bad -eq 0 ] || exit 1

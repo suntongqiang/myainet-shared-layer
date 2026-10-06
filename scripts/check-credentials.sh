@@ -67,18 +67,25 @@ if [ "$hits" -gt 0 ]; then
   exit 1
 fi
 
-# ★ 即使文件里已清干净，历史里的凭据仍需轮换 —— 只要这份清单在，就持续提示
+# ★ 即使文件里已清干净，历史里的凭据仍需轮换 —— 但只要清单里每一项都已标 ✅，就不该继续报警。
+#   旧实现写死 `grep -c "^| [0-9]"`，把"已轮换"的行也计入 ⇒ **永久误报** ⇒ 报警被当噪音无视。
+#   （"总是亮着的红灯等于没有红灯" —— 正是本层最忌的形态，见 FM-23。）
 PEND="$(cd "$(dirname "$0")/.." && pwd)/SECURITY-PENDING.md"
-if [ -f "$PEND" ] && grep -q "^- \[x\] 全部" "$PEND" 2>/dev/null; then
-  :
-elif [ -f "$PEND" ]; then
-  pending=$(grep -c "^| [0-9]" "$PEND" 2>/dev/null)
-  echo "CRED=OK 无「会被同步出去」的明文凭据（本地未跟踪的 ${warns:-0} 处已忽略）"
-  echo "⚠ 但 SECURITY-PENDING.md 记着 ${pending:-?} 项【待轮换】凭据 —— 它们仍在 git 历史里。"
+pending=""
+if [ -f "$PEND" ]; then
+  if grep -q "^- \[x\] 全部" "$PEND" 2>/dev/null; then
+    pending=0
+  else
+    # 表格形如 `| # | 凭据 | 曾出现位置 | 现状 | 你要做的 |` —— 按 `|` 切分后 $5 是"现状"列
+    pending=$(awk -F'|' '/^\| *[0-9]/ { if ($5 !~ /✅/) c++ } END { print c+0 }' "$PEND")
+  fi
+fi
+
+echo "CRED=OK 无「会被同步出去」的明文凭据（本地未跟踪的 ${warns:-0} 处已忽略）"
+if [ -n "$pending" ] && [ "$pending" -gt 0 ]; then
+  echo "⚠ SECURITY-PENDING.md 还有 ${pending} 项【待轮换】凭据 —— 它们仍在 git 历史里。"
   echo "   → 只有去服务商后台吊销才算修复（另有 --quiet 时本行不显示）"
-  [ "$QUIET" = "--quiet" ] && exit 0
-  exit 0
-else
-  echo "CRED=OK 无「会被同步出去」的明文凭据（本地未跟踪的 ${warns:-0} 处已忽略）"
+elif [ -n "$pending" ]; then
+  [ "$QUIET" = "--quiet" ] || echo "✓ SECURITY-PENDING.md 各凭据项均已轮换/撤销（历史里仍可读到，但已失效）"
 fi
 exit 0
