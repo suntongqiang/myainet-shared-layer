@@ -74,6 +74,19 @@ bash scripts/verify-live.sh                             # 校验各机是否真�
 - [marcusquinn/aidevops](https://github.com/marcusquinn/aidevops) ——
   **pre-commit 拒绝重复 ID** 的守卫模式（本方案 `hooks/pre-commit` 的思路来源）。
 
+## ☕ 赞赏
+
+这套东西**不是设计出来的，是踩坑踩出来的** —— 故障库里的每一条都对应一次真实的排障，
+包括「校验器把自己排除在外」「注释吞掉下一行代码」这类骗过了所有绿灯的事故。
+
+如果它帮你省下了时间，可以请我喝杯咖啡：
+
+| 微信赞赏码 | 支付宝 |
+|:---:|:---:|
+| <img src="docs/assets/wechat-reward.png" width="240" alt="微信赞赏码"> | <img src="docs/assets/alipay-reward.jpg" width="240" alt="支付宝收款码"> |
+
+> 收款码只收不付；扫码后请自行核对收款方名称。
+
 ## License
 
 MIT
