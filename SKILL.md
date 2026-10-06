@@ -23,14 +23,19 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 两个方案都会坏：单点存储坏在**不可用**，多副本无校验坏在**不一致且不报错**。
 本方案 = 多副本拿可用性 + 端到端校验拿一致性。
 
-## 三条最容易被忽略的纪律
+## 四条最容易被忽略的纪律
 
 1. **迁移必须成对**：建新镜像的同时，**必须改所有消费方的 `git remote origin`**。
    只做一半 → **能推不能拉，且不报错**（FM-01，最危险的故障）。
 2. **只跑同步不算同步**：同步后必须 `verify-live.sh` 逐台校验活副本 HEAD。
    `pushed_remote=2/3` 这种**单侧指标**会被误读成"同步好了"。
+   ★ 而校验器**必须能校验自己**（本机本地直查，绝不 ssh 回环）—— 否则"唯一配错的那台"就是它自己（FM-29）。
 3. **禁止数本地最大值分配编号**：必须 `next-mem-id.sh` 跨镜像取号，
    或干脆走 inbox 通道由唯一 promoter 分配（FM-02）。
+4. **★任务入口必须落在同步树里**：每台机器的同步任务动作一律写
+   `<该机 _shared>\scripts\shared-sync-entry.ps1`，
+   **机器上不允许存在实现的手工拷贝**——拷一份到 `%USERPROFILE%` 就等于给自己埋一个永不更新的分支
+   （FM-12 / FM-29；实测三台的本地拷贝 sha 全不一样）。
 
 ## 文件地图
 
@@ -41,6 +46,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | `docs/ARCHITECTURE.md` | 架构与取舍（为什么不是单点 / Obsidian Sync / Syncthing / CRDT） |
 | `docs/PROTOCOL.md` | 记忆写入协议：条目形态、编号纪律、冲突裁决、写入路径、校验 |
 | `scripts/shared-sync.sh` / `.ps1` | 多镜像同步（fetch 首个可达 → 只 ff → 推所有可达）。**本机自己的 bare 走本地路径、不走 ssh 回环**；**退出码反映状态**（分叉 / 部分失败 → 非零，见 FM-22 / FM-29） |
+| **`scripts/shared-sync-entry.ps1`** | **★ 任务入口（薄包装）**：计划任务的**唯一正确目标**。只定位 `_shared` 再交给上面的实现 —— 这样"更新共享层"就等于"更新所有节点的入口" |
 | `scripts/verify-live.sh` | **★ 活副本端到端校验**（逐台校验 HEAD 与 origin 是否指向机群镜像）。**本机一律本地直查、绝不 ssh 回环**（FM-29）；输出里标 `[local]` / `[ssh]` 与 `self_checked_locally=N` |
 | `scripts/verify-fleet.sh` | **★ 机群三项校验**：(a) 代码仓一致（HEAD/工作区/origin）(b) **调度拓扑唯一性**（同名交易任务不能两台同时启用）(c) **缓存末日**（运行时陈旧=FAIL/非运行时=WARN）。★一律比 commit 不比字节（三台 autocrlf=true，比字节必误报） |
 | `scripts/next-mem-id.sh` | **★ 跨全部镜像**取下一个空闲编号 |
