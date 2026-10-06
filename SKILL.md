@@ -1,6 +1,6 @@
 ---
 name: myainet-shared-layer
-description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用；也含与同类系统的双向对比。含真实故障库（FM-01~FM-29，29 条全部来自真实事故）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群四项校验（含任务返回码健康） / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
+description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用；也含与同类系统的双向对比。含真实故障库（FM-01~FM-30，30 条全部来自真实事故）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群四项校验（含任务返回码健康） / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
 ---
 
 # myainet-shared-layer · 多机共享记忆层
@@ -41,7 +41,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 
 | 路径 | 内容 |
 |---|---|
-| `docs/FAILURE-MODES.md` | **★ 真实故障库 FM-01~FM-29：症状 / 根因 / 对策 / 教训**（先读这个） |
+| `docs/FAILURE-MODES.md` | **★ 真实故障库 FM-01~FM-30：症状 / 根因 / 对策 / 教训**（先读这个） |
 | `docs/COMPARISON.md` | **★ 与同类系统的双向对比**（shadowbrain / Mem0 / Letta 一类）：我们领先在「机群一致性校验（verify-live/verify-fleet）」；**落后在「检索质量、confidence 衰减、★召回正文的注入防护」** —— 后三项是从同类学来的待补项 |
 | `docs/ARCHITECTURE.md` | 架构与取舍（为什么不是单点 / Obsidian Sync / Syncthing / CRDT） |
 | `docs/PROTOCOL.md` | 记忆写入协议：条目形态、编号纪律、冲突裁决、写入路径、校验 |
@@ -95,6 +95,7 @@ bash scripts/rollback.sh         $V --apply before-risky --yes   # 退回（前�
 | 规则明明写了却还是复发 | 它只写在文档里 —— 变成脚本 | FM-12 |
 | 同一份代码两台各跑各的 | `verify-fleet.sh` (a) 比 commit；查是否有人绕过了仓 | FM-20 |
 | 文件"看起来正常"却语法错/配置失效 | 定界符被注释或编辑吃掉了（少 Host 行 / 吞 `}`）| FM-19 / FM-21 |
+| 脚本"看起来正常"但某几条语句没执行，**且两台机器行为不同** | `.ps1` 有没有 **UTF-8 BOM**；比对 `Get-Content` 行数与真实 LF 数 | **FM-30** |
 | 任务状态 Ready、日志在长，但没产出 | 读日志内容 + 核产物；`Ready` ≠ 跑成功 | FM-22 |
 | 校验全绿但故障还在 | **故障长在你没校验的地方** —— 覆盖面要跟着"实际在跑的东西"走 | FM-23 |
 | 同一个问题两台机器两个答案 | `verify-fleet.sh` (c) 比缓存末日 | FM-23 |
