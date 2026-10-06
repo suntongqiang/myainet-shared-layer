@@ -31,7 +31,7 @@
 | 2 | **★`verify-fleet.sh` 的 (b) 调度拓扑唯一性** | 检查"同一套定时任务是否在两台以上同时启用"（会重复告警/重复下单）。**没有任何同类做这个** |
 | 3 | **★`verify-fleet.sh` 的 (c) 状态/缓存新鲜度**（运行时陈旧=FAIL、非运行时=WARN） | 我们实战抓到：信号任务跑在**缓存落后 11 天**的机器上，照样输出"看起来权威"的结论 |
 | 4 | **★`snapshot.sh` / `rollback.sh`**：默认"前向回退提交"而非 `reset --hard`；自动打 `pre-rollback-*` tag + 未跟踪文件备份 | 多机环境下 `reset --hard` 会破坏别人的副本。它只有 `conflicts review`，**没有配置态快照/回退** |
-| 5 | **★真实故障库 24 条（FM-01~FM-24），且每条都变过脚本** | FM-12「规则只写在文档里≠存在」→ 催生 `check-integrity`；FM-14「明文凭据躺 19 天」→ 催生 `check-credentials`；FM-18「撞号覆盖 9 天」→ 催生 INDEX 重复行检查。它有 `findings.md`（per-host MCP transport quirks），**面窄得多** |
+| 5 | **★真实故障库 27 条（FM-01~FM-27），且每条都变过脚本** | FM-12「规则只写在文档里≠存在」→ 催生 `check-integrity`；FM-14「明文凭据躺 19 天」→ 催生 `check-credentials`；FM-18「撞号覆盖 9 天」→ 催生 INDEX 重复行检查。它有 `findings.md`（per-host MCP transport quirks），**面窄得多** |
 | 6 | **★三层（技能 + 知识库 + 记忆）**，不只是记忆 | shadowbrain 只做记忆 |
 | 7 | **不依赖 MCP** | 任何能读写文件的 agent 都能用；MCP 不可用/没装的场景它覆盖不到 |
 | 8 | **"可公开仓"与"绝不可公开仓"的分离原则** | 共享层可发 GitHub；量化代码含策略与持仓**独立成仓、绝不公开**。它没有这个区分（因为它只有记忆） |

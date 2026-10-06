@@ -9,10 +9,13 @@
 #     4) aquant 在两台各自演化：22 个文件只在一台、4 个只在另一台、11 个同名不同内容
 #   四个都是静默的：两边都"正常运行"，只是跑的不是同一份东西。
 #
-# 本脚本做三项校验：
+# 本脚本做五项校验：
 #   (a) 代码仓一致 —— 各机量化仓 HEAD == 镜像尖端，且工作区干净、origin 指向本地镜像
 #   (b) 调度拓扑唯一 —— 同名交易任务不能在两台以上同时「启用」（否则重复告警/重复下单）
 #   (c) 缓存末日一致 —— 各机行情缓存的最后数据日一致（否则同一问题两台两个答案）
+#   (d) 计划任务健康 —— 各机启用中的交易任务**最近一次到底跑成功了没有**（返回码 + 最近运行时间）
+#       ★2026-09-30 新增：此前只查"任务在不在、有没有重复启用"，不问"它跑成功了吗"，
+#         结果 aquant_gate 带着 rc=0x80000003 静默失败了两天无人知晓。
 #
 # ★重要：一律比对 **commit**，不比文件字节。
 #   三台 Windows 的 core.autocrlf=true（检出 LF→CRLF），比字节必然误报。
@@ -179,6 +182,82 @@ for c in $REF_CODES; do
   done
 done
 
+# ── (d) 计划任务健康（返回码 + 最近运行时间）──────────────────────────────────
+# ★这条本该早就存在。2026-09-30 发现：aquant_gate 连续两天 LastTaskResult=0x80000003
+#   （py_mini_racer/内嵌 V8 在多线程下 abort 整个进程），**任务日志里只有崩溃栈、
+#   没有任何正常输出，也没有人收到任何提示**。(b) 只问"任务在不在、有没有重复启用"，
+#   不问"它跑成功了吗" —— 这正是 FM-23「校验器的覆盖面，就是故障的藏身处」。
 echo
+echo "(d) 计划任务健康（返回码 / 最近运行时间）"
+# ★「正在运行」不等于健康：2026-09-30 实测 aquant_gate 挂死 3.5 小时（CPU 冻结在 3614s），
+#   而 (d) 会把它显示成「⏳ 正在运行」放行 —— 又一个"看起来健康"的盲区。
+#   阈值可用 VERIFY_RUNNING_MAX_MIN 覆盖（自测用；默认 90 分钟，本项目最长正常任务约 30 分钟）。
+RUNNING_MAX_MIN="${VERIFY_RUNNING_MAX_MIN:-90}"
+TASKLIST=$(echo "$SINGLE_HOST_TASKS" | tr ' ' ',')
+NOW=$(date +%s)
+for spec in "${HNODES[@]}"; do
+  H="${spec%%|*}"; NAME="${spec#*|}"
+  OUT=$(runps "$H" "[Console]::OutputEncoding=[Text.Encoding]::UTF8
+foreach(\$n in @('$TASKLIST'.Split(','))){
+  \$t = Get-ScheduledTask -TaskName \$n -ErrorAction SilentlyContinue
+  if(\$t -and \$t.State -ne 'Disabled'){
+    \$i = Get-ScheduledTaskInfo -TaskName \$n
+    Write-Output ('J ' + \$n + ' rc=' + \$i.LastTaskResult + ' last=' + \$i.LastRunTime.ToString('yyyy-MM-ddTHH:mm') + ' state=' + \$t.State)
+  }
+}" | grep -a '^J ')
+  if [ -z "$OUT" ]; then echo "  $NAME   （无启用中的交易任务）"; continue; fi
+  while read -r _ tn rest; do
+    [ -z "${tn:-}" ] && continue
+    rc=$(printf '%s' "$rest" | grep -o 'rc=[0-9-]*' | cut -d= -f2)
+    last=$(printf '%s' "$rest" | grep -o 'last=[0-9T:-]*' | cut -d= -f2)
+    stt=$(printf '%s' "$rest" | grep -o 'state=[A-Za-z]*' | cut -d= -f2)
+    # 0=成功  267009=0x41301 正在运行  267011=0x41303 从未运行
+    case "$rc" in
+      0)         printf "  %-8s %-26s \xe2\x9c\x85 rc=0 %s (%s)\n" "$NAME" "$tn" "$stt" "$last" ;;
+      267009)    _rt=$(date -d "${last}:00" +%s 2>/dev/null || echo "")
+                 _mins=""
+                 [ -n "$_rt" ] && _mins=$(( (NOW - _rt) / 60 ))
+                 if [ -n "$_mins" ] && [ "$_mins" -gt "$RUNNING_MAX_MIN" ]; then
+                   printf "  %-8s %-26s \xe2\x9d\x8c \u5df2\u8fd0\u884c %s \u5206\u949f\u4ecd\u672a\u7ed3\u675f\uff08\u7591\u4f3c\u6302\u6b7b\uff09\n" "$NAME" "$tn" "$_mins"
+                   bad=$((bad+1))
+                 else
+                   printf "  %-8s %-26s \xe2\x8f\xb3 \u6b63\u5728\u8fd0\u884c (%s)\n" "$NAME" "$tn" "$last"
+                 fi ;;
+      267011)    printf "  %-8s %-26s \xe2\x9a\xa0\xef\xb8\x8f  从未运行 (%s)\n" "$NAME" "$tn" "$last"; warned=$((warned+1)) ;;
+      *)         hex=$(printf '0x%X' "$rc" 2>/dev/null || echo '?')
+                 printf "  %-8s %-26s \xe2\x9d\x8c rc=%s (%s) 最近=%s state=%s\n" "$NAME" "$tn" "$rc" "$hex" "$last" "$stt"
+                 bad=$((bad+1)) ;;
+    esac
+    if [ -n "$last" ]; then
+      lt=$(date -d "${last}:00" +%s 2>/dev/null || echo "")
+      if [ -n "$lt" ]; then
+        age=$(( (NOW - lt) / 86400 ))
+        if [ "$age" -gt 5 ]; then
+          printf "  %-8s %-26s \xe2\x9a\xa0\xef\xb8\x8f  最近一次运行距今 %d 天（静默停滞？）\n" "$NAME" "$tn" "$age"
+          warned=$((warned+1))
+        fi
+      fi
+    fi
+  done <<< "$OUT"
+done
+
+echo
+echo
+echo "(e) 因子守门器清单存活（景德 aquant/forbidden-regions.yaml）"
+GOUT=$(runps "100.105.238.46" "[Console]::OutputEncoding=[Text.Encoding]::UTF8
+\$py='C:\Users\Administrator\AppData\Local\Programs\Python\Python311\python.exe'
+Push-Location 'C:\Users\Administrator\金刚'
+\$o = & \$py -X utf8 -m aquant.qa_forbidden --list 2>&1
+Write-Output ('GRC ' + \$LASTEXITCODE)
+Write-Output ('GENT ' + ((\$o | Select-String -Pattern '^  [a-z]').Count))" 2>/dev/null | tr -d "\r")
+grc=$(printf "%s\n" "$GOUT" | grep -a "^GRC " | head -1 | awk '{print $2}')
+gent=$(printf "%s\n" "$GOUT" | grep -a "^GENT " | head -1 | awk '{print $2}')
+if [ "${grc:-}" = "0" ] && [ -n "${gent:-}" ] && [ "${gent:-0}" -ge 5 ]; then
+  echo "  ✅ 守门器可用：禁止区域 ${gent} 条"
+else
+  echo "  ❌ 守门器异常（rc=${grc:-?} 条目=${gent:-?}）—— 闸门可能正在静默放行所有候选"
+  bad=$((bad+1))
+fi
+
 echo "VERIFY_FLEET=done problems=$bad warnings=$warned"
 [ $bad -eq 0 ] && echo "FLEET_OK" || exit 1

@@ -65,5 +65,21 @@ if [ -f "$CREDSH" ]; then
   if out=$(bash "$CREDSH" "$V" --quiet 2>&1); then echo "  OK 无明文凭据"; else echo "$out" | sed 's/^/  /'; bad=$((bad+1)); fi
 else echo "  SKIP 未找到 check-credentials.sh"; fi
 
+echo "== 8) ★索引行\"内容被吞\"启发式（FM-25 实例 B）=="
+# 双引号里的反引号会被 shell 当命令替换执行，把结论吃掉，且【不报错、退出码 0】。
+# 症状：INDEX 行里出现连续两个空格（原本被反引号包起来的那段消失了）。
+# 这条纪律光写下来没用 —— 2026-09-30 记完 FM-25 之后 20 分钟内我又犯了一次，故做成机械校验。
+_sus=0
+while IFS= read -r _ln; do
+  case "$_ln" in
+    "| mem-"*)
+      if printf '%s' "$_ln" | grep -q '  '; then
+        echo "  ✗ 可疑（连续空格，疑似反引号内容被 shell 吃掉）: $(printf '%s' "$_ln" | cut -c1-72)"
+        _sus=$((_sus+1))
+      fi ;;
+  esac
+done < "$IDX"
+if [ "$_sus" -eq 0 ]; then echo "  OK 无被吞内容的痕迹"; else bad=$((bad+_sus)); fi
+
 echo "INTEGRITY=$( [ $bad -eq 0 ] && echo PASS || echo FAIL ) issues=$bad"
 [ $bad -eq 0 ] || exit 1

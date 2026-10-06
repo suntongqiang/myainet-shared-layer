@@ -7,8 +7,8 @@
 
 | # | 凭据 | 曾出现位置 | 现状 | 你要做的 |
 |---|---|---|---|---|
-| 1 | **GitHub PAT**（`repo` 全权） | `skills/e-card-namecard/editor.html` 第 445 / 1921 行 | ✅ 已从文件清空 | 去 https://github.com/settings/tokens **删掉旧的那个**；如需再用就新建一个，**只放进「发布设置」（浏览器 localStorage）** |
-| 2 | **UUMit api_key** | `skills/uumit-agent/memory/uumit-auth.json` | ✅ 已从 git 移出（文件留在磁盘，技能照常工作） | 去 UUMit 平台后台**吊销并重新生成**；新值由技能的 `auth.js` 自动写回同一文件（已 gitignore） |
+| 1 | ~~GitHub PAT（`repo` 全权）~~ | `skills/e-card-namecard/editor.html` 第 445 / 1921 行 | ✅ **已从文件清空 + 已轮换（2026-09-29 04:57，旧令牌实测 401）** | ✅ **完成**。<br>✅ **新令牌已重建**：`repo` 权限、**90 天到期（2026-12-27）**、已实测有效且能读写 `mingpian-ecard`；**不落任何文件**，待主人粘贴到 **sunyijia 浏览器**的编辑器「⚙️ 发布设置」。<br>⏰ **2026-12-27 到期**：届时一键发布会失效，重建一次约 30 秒。 |
+| 2 | ~~UUMit api_key（`Lvykme…`）~~ | `skills/uumit-agent/memory/uumit-auth.json` | ✅ **已从 git 移出 + 已撤销（2026-09-29 05:31 实测：`code 1006 API Key 无效或已撤销`）** | ✅ **完成**。如需再用 UUMit，走 `auth.js` 重新绑定（新密钥自动写回同一文件，已 gitignore）。 |
 
 ## 为什么只是"移出"还不够
 
