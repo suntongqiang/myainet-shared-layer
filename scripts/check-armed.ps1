@@ -76,7 +76,25 @@ if ($found.Count -eq 0) {
     $lines += "sync-task=OK (" + ($found -join ",") + ")"
 }
 
-# ---- 4) 汇总 ----
+# ---- 4) ★ 最近一次同步是否健康（分叉要能"叫醒人"，FM-31 配套）----
+$stFile = Join-Path $RepoPath ("hub\sync-status\" + $env:COMPUTERNAME + ".json")
+if (Test-Path $stFile) {
+    try {
+        $st = [System.IO.File]::ReadAllText($stFile, (New-Object System.Text.UTF8Encoding($false))) | ConvertFrom-Json
+        $ageHours = [math]::Round(((Get-Date) - [datetime]$st.sync_at).TotalHours, 1)
+        $lines += ("last-sync=rc" + $st.rc + " age=" + $ageHours + "h head=" + $st.head)
+        if ([int]$st.rc -ne 0) {
+            $missing += ("sync-unhealthy-rc" + $st.rc)
+            $lines += ("  detail: " + $st.detail)
+        } elseif ($ageHours -gt 48) {
+            $missing += "sync-stale"
+        }
+    } catch { $lines += "last-sync=WARN unreadable" }
+} else {
+    $lines += "last-sync=none (never recorded on this machine)"
+}
+
+# ---- 5) 汇总 ----
 $lines | ForEach-Object { Write-Output $_ }
 if ($missing.Count -gt 0) {
     Write-Output ("ARMED=FAIL missing=" + ($missing -join ","))

@@ -94,6 +94,23 @@ if ($log -match 'state=DIVERGED|action=ff-BLOCKED') { $rc = 1 }
 if ($RemoteMirrors.Count -gt 0) {
   if ($ok -eq 0) { $rc = 2 } elseif ($ok -lt $RemoteMirrors.Count) { $rc = 1 }
 }
+# 4) ★ 落盘本机同步状态（FM-31 配套）：供 check-armed.ps1 判"最近一次同步是否健康"
+#    写到 <repo>/hub/sync-status/ —— hub/ 已在 .gitignore 里（本机运行产物），
+#    所以**不会让仓库变脏**（否则每 10 分钟产生未提交改动，反触发 FM-04 拉取被挡）。
+try {
+  $statusDir = Join-Path $RepoPath "hub\sync-status"
+  if (-not (Test-Path $statusDir)) { New-Item -ItemType Directory -Force -Path $statusDir | Out-Null }
+  $stObj = [ordered]@{
+    machine = $env:COMPUTERNAME
+    sync_at = (Get-Date).ToString('yyyy-MM-ddTHH:mm:sszzz')
+    rc      = $rc
+    head    = (& $GIT -C $RepoPath rev-parse --short master 2>$null).Trim()
+    detail  = ($log -join ' | ')
+  }
+  $stFile = Join-Path $statusDir ($env:COMPUTERNAME + '.json')
+  [System.IO.File]::WriteAllText($stFile, ($stObj | ConvertTo-Json -Depth 4), (New-Object System.Text.UTF8Encoding($false)))
+} catch { }
+
 Write-Output $line
 if ($rc -ne 0) { Write-Output ("SYNC=WARN rc=$rc " + ($log -join " | ")) }
 exit $rc

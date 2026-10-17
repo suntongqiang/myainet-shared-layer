@@ -59,7 +59,8 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | `scripts/inbox-submit.sh` | **★ 无冲突写入通道**（per-agent 时间戳文件） |
 | `scripts/promote-inbox.sh` | 中心化晋升：唯一 promoter 分配正式编号 |
 | `scripts/install-hooks.sh` + `hooks/pre-commit` | **★ 拒绝引入重复编号 / 冲突标记 / 明文凭据的提交** |
-| **`scripts/check-armed.ps1`** | **★ 生效判定（armed）**：守卫已装 / inbox 已建 / 同步任务未禁用，一次查完，输出 `ARMED=OK` 或 `ARMED=FAIL missing=...`（FM-31） |
+| **`scripts/check-armed.ps1`** | **★ 生效判定（armed）**：守卫已装 / inbox 已建 / 同步任务未禁用 / 最近一次同步是否健康，一次查完，输出 `ARMED=OK` 或 `ARMED=FAIL missing=...`（FM-31） |
+| **`scripts/publish-gh-api.ps1`** | **GitHub 发布（API 路径）**：`github.com:443` 不通时的唯一可用办法 —— 走 `api.github.com` 的 Git Data API，全部前置成功才 PATCH ref（本机实测常态，见 mem-0305） |
 | **`scripts/check-credentials.sh`** | **★ 明文凭据扫描**（GitHub/AWS/Slack/OpenAI/私钥/通用 token= 形态），命中即脱敏报警 |
 | `scripts/memory-search.sh` | 检索 + **`<memory-data>` 注入防护**；支持 `--scope/--kind/--json` |
 | `scripts/memory-stale.sh` | 陈旧记忆候选 → 可逆归档（**永不删除**） |

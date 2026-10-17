@@ -145,6 +145,11 @@ bash scripts/install-hooks.sh /path/to/vault
 | `.git/hooks/pre-commit`（§6 守卫） | `hook=OK` | 重复编号 / 冲突标记 / 明文凭据不再被拦，能直接提交进去 |
 | `memory/inbox/`（§4 唯一写入通道） | `inbox=OK` | 大家回到"直接改 mem + 手改 INDEX"，**撞号必然** |
 | 同步任务存在且非 `Disabled` | `sync-task=OK` | 没人巡逻，分叉静默累积（FM-22） |
+| 最近一次同步 `rc == 0` 且 48h 内（`hub/sync-status/<host>.json`） | `last-sync=rc0` | 分叉时脚本只是**停手**，没人被叫醒（FM-31） |
+
+> **每台机器只保留一个启用的同步任务。** 实测景德有两个（`DSH-SharedSync` 停用、`myainet-SharedSync-Mirror` 启用），
+> 这是**收敛后的预期状态**（避免两个任务互相抢推送）；`check-armed` 只要有一个启用即判 OK。
+> 若看到两个都启用，那才是问题。
 
 判定命令（每台机器都跑）：
 
