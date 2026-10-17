@@ -133,3 +133,27 @@ bash scripts/install-hooks.sh /path/to/vault
    跨机场景再跑 `verify-live.sh` 确认各机都在同一个 commit 上。
 5. **快照清单本身要进版本库**（`memory/_snapshots/*.json`）——
    这样"我们知道什么算良好"这件事也会同步到每一台机器，而不是只存在于某台的脑子里。
+
+---
+
+## 10. ★生效判定：armed（2026-10-18 立，依据 FM-31）
+
+**文档写全 ≠ 协议生效。** 本协议有三件"机械零件"，缺任何一件，规矩就只是纸面的：
+
+| 检查项 | 期望 | 缺了会怎样 |
+|---|---|---|
+| `.git/hooks/pre-commit`（§6 守卫） | `hook=OK` | 重复编号 / 冲突标记 / 明文凭据不再被拦，能直接提交进去 |
+| `memory/inbox/`（§4 唯一写入通道） | `inbox=OK` | 大家回到"直接改 mem + 手改 INDEX"，**撞号必然** |
+| 同步任务存在且非 `Disabled` | `sync-task=OK` | 没人巡逻，分叉静默累积（FM-22） |
+
+判定命令（每台机器都跑）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-armed.ps1 -RepoPath <vault>
+```
+
+- 输出 `ARMED=OK`（退出码 0）= 协议生效；
+- 输出 `ARMED=FAIL missing=...`（退出码 4）= 协议**未启用**，逐项补齐后再谈别的。
+
+**建议接进开机/每日任务**，把 `ARMED=FAIL` 直接作为告警条件 ——
+否则 FM-31 会原样重演：一切都"看起来正常"，直到有人手工去对账。

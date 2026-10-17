@@ -1,6 +1,6 @@
 ---
 name: myainet-shared-layer
-description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用；也含与同类系统的双向对比。含真实故障库（FM-01~FM-30，30 条全部来自真实事故）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群四项校验（含任务返回码健康） / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
+description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆 / 技能库」层的架构与运维手册。当需要搭建或排障多机共享记忆、多镜像 git 同步、记忆编号冲突、活副本不同步（能推不能拉）、或要把这套方案搬去别的机器/上传 GitHub 时使用；也含与同类系统的双向对比。含真实故障库（FM-01~FM-31，31 条全部来自真实事故）、记忆写入协议、以及配套脚本（多镜像同步 / verify-live 活副本校验 / verify-fleet 机群四项校验（含任务返回码健康） / next-mem-id 编号分配 / 完整性检查 / inbox 无冲突写入与中心化晋升 / pre-commit 守卫）。触发词：共享层 / 共享记忆 / 多机同步 / 镜像仓 / 编号冲突 / 撞号 / 活副本 / verify-live / verify-fleet / 能推不能拉 / 调度拓扑 / 缓存末日。
 ---
 
 # myainet-shared-layer · 多机共享记忆层
@@ -23,7 +23,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 两个方案都会坏：单点存储坏在**不可用**，多副本无校验坏在**不一致且不报错**。
 本方案 = 多副本拿可用性 + 端到端校验拿一致性。
 
-## 四条最容易被忽略的纪律
+## 五条最容易被忽略的纪律
 
 1. **迁移必须成对**：建新镜像的同时，**必须改所有消费方的 `git remote origin`**。
    只做一半 → **能推不能拉，且不报错**（FM-01，最危险的故障）。
@@ -36,6 +36,11 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
    `<该机 _shared>\scripts\shared-sync-entry.ps1`，
    **机器上不允许存在实现的手工拷贝**——拷一份到 `%USERPROFILE%` 就等于给自己埋一个永不更新的分支
    （FM-12 / FM-29；实测三台的本地拷贝 sha 全不一样）。
+5. **★契约必须带电（armed）**：守卫（pre-commit）、收件箱（`memory/inbox/`）、同步任务
+   这三件机械零件**必须真的装上、且被调用**，否则整套协议只是文档。
+   FM-31 的现场：三道防线**一条都没装**（inbox 不存在、hook 未安装、200 笔提交 0 次走通道），
+   于是 §2 明令禁止的"直接改 mem + 手改 INDEX"成了实际做法，撞号照旧发生，**全程零报错**。
+   每台机器跑 `scripts/check-armed.ps1` 必须得到 `ARMED=OK`；`ARMED=FAIL` 即视为**协议未启用**。
 
 ## 文件地图
 
@@ -54,6 +59,7 @@ description: 多台无人值守机器 + 多个 AI agent 共用的「共享记忆
 | `scripts/inbox-submit.sh` | **★ 无冲突写入通道**（per-agent 时间戳文件） |
 | `scripts/promote-inbox.sh` | 中心化晋升：唯一 promoter 分配正式编号 |
 | `scripts/install-hooks.sh` + `hooks/pre-commit` | **★ 拒绝引入重复编号 / 冲突标记 / 明文凭据的提交** |
+| **`scripts/check-armed.ps1`** | **★ 生效判定（armed）**：守卫已装 / inbox 已建 / 同步任务未禁用，一次查完，输出 `ARMED=OK` 或 `ARMED=FAIL missing=...`（FM-31） |
 | **`scripts/check-credentials.sh`** | **★ 明文凭据扫描**（GitHub/AWS/Slack/OpenAI/私钥/通用 token= 形态），命中即脱敏报警 |
 | `scripts/memory-search.sh` | 检索 + **`<memory-data>` 注入防护**；支持 `--scope/--kind/--json` |
 | `scripts/memory-stale.sh` | 陈旧记忆候选 → 可逆归档（**永不删除**） |

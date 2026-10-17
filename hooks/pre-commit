@@ -4,8 +4,15 @@
 set -u
 fail=0
 
-# 只看 memory/ 下的条目文件（排除 INDEX.md）
-is_entry() { echo "$1" | grep -qE '(^|/)memory/[^/]+\.md$' && ! echo "$1" | grep -qE '(^|/)memory/INDEX\.md$'; }
+# 只看 memory/ 下的条目文件（排除 INDEX.md 与 _ 开头的模板/私有文件）
+# ★ 2026-10-18 修：过去只排除 INDEX.md，导致 memory/_template.md 的占位 id（mem-0001）
+#    被当成真条目 → 与真实 mem-0001.md 撞号 → 守卫永久误报，**挡住每一次提交**。
+#    装守卫当天就踩到（FM-31 暴露的旧账）。模板与 _ 开头的私有文件一律不参与 id 统计。
+is_entry() {
+  echo "$1" | grep -qE '(^|/)memory/[^/]+\.md$' || return 1
+  echo "$1" | grep -qE '(^|/)memory/(INDEX\.md|_[^/]*\.md)$' && return 1
+  return 0
+}
 staged_all=$(git diff --cached --name-only 2>/dev/null || true)
 staged_entries=$(echo "$staged_all" | while read -r p; do [ -n "$p" ] && is_entry "$p" && echo "$p"; done)
 
